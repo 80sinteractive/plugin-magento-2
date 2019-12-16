@@ -32,6 +32,12 @@ class CheckoutAllSubmitAfterObserver implements ObserverInterface
      * @var \Magento\Sales\Model\Service\InvoiceService
      */
     protected $invoiceService;
+	
+    /**
+     *
+     * @var \Magento\Sales\Model\Order\Email\Sender\InvoiceSender
+     */
+    protected $invoiceSender;
 
     /**
      *
@@ -51,13 +57,15 @@ class CheckoutAllSubmitAfterObserver implements ObserverInterface
         \Magento\Framework\App\Config\ScopeConfigInterface $scopeConfig,
         \Magento\Sales\Model\ResourceModel\Order\Invoice\CollectionFactory $invoiceCollectionFactory,
         \Magento\Sales\Model\Service\InvoiceService $invoiceService,
-        \Magento\Framework\DB\TransactionFactory $transactionFactory
+        \Magento\Framework\DB\TransactionFactory $transactionFactory,
+	\Magento\Sales\Model\Order\Email\Sender\InvoiceSender $invoiceSender
     ) {
         $this->logger = $logger;
         $this->scopeConfig = $scopeConfig;
         $this->invoiceCollectionFactory = $invoiceCollectionFactory;
         $this->invoiceService = $invoiceService;
         $this->transactionFactory = $transactionFactory;
+	$this->invoiceSender = $invoiceSender;
     }
 
     /**
@@ -102,11 +110,14 @@ class CheckoutAllSubmitAfterObserver implements ObserverInterface
 
                 $invoice = $this->invoiceService->prepareInvoice($order);
                 $invoice->setRequestedCaptureCase(\Magento\Sales\Model\Order\Invoice::CAPTURE_ONLINE);
-                $invoice->register();
-                $invoice->getOrder()->setCustomerNoteNotify(false);
+                $invoice->register();		    
+                $invoice->getOrder()->setCustomerNoteNotify(true);
                 $invoice->getOrder()->setIsInProcess(true);
                 $transactionSave = $this->transactionFactory->create()->addObject($invoice)->addObject($invoice->getOrder());
                 $transactionSave->save();
+	        
+		$this->invoiceSender->send($invoice);
+		    
             } catch (\Exception $e) {
                 $order->addStatusHistoryComment('Exception message: '.$e->getMessage(), false);
                 $order->save();
